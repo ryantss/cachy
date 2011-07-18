@@ -32,6 +32,15 @@ class Tweet < ActiveRecord::Base
   caches_class_method :find_with_conditions
 
   # You can cache many class methods in one go.
-  caches_methods :first, :all, :find_by_id, :expires_in => 1.hour
+  caches_class_methods :first, :all, :find_by_id, :expires_in => 1.hour
+
+  # And cool part is.
+  caches_class_methods :find_by_id, :first, :all do |*params|
+    { :params => params, :scope => self.current_scoped_methods && self.current_scoped_methods.to_sql }
+  end
+  # This will cache all kind of query, e.g.
+  # Tweet.where(:id => 10).first
+  # Tweet.select('tweets.id, users.id, users.name').joins(:users).where(:id => 10).all
+
 end
 ```
