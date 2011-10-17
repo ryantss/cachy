@@ -85,7 +85,7 @@ module Cachy
             object = if condition && condition.call(self, *args) == false
               send(name, *args)
             else
-              if defined?(Rails) && !Rails.production?
+              if defined?(Rails) && !Rails.env.production?
                 Rails.logger.info "#{class_key}:#{cache_key}"
                 Rails.logger.info options.slice(*::Cachy.cache_option_keys).inspect
               end
@@ -135,7 +135,7 @@ module Cachy
           object = if condition && condition.call(*args) == false
             send(name, *args)
           else
-            if defined?(Rails) && !Rails.production?
+            if defined?(Rails) && !Rails.env.production?
               Rails.logger.info "#{class_key}:#{cache_key}"
               Rails.logger.info options.slice(*::Cachy.cache_option_keys).inspect
             end
