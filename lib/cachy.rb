@@ -1,12 +1,20 @@
 module Cachy
   extend ActiveSupport::Concern
 
-  def self.cache
-    @cache ||= Rails.cache
+  def self.set_cache_config(cache_config)
+    @cache_config = cache_config
   end
 
-  def self.cache=(cache)
+  def self.cache_config
+    @cache_config
+  end
+
+  def self.set_cache(cache)
     @cache = cache
+  end
+
+  def self.cache
+    @cache ||= Rails.cache
   end
 
   def self.digest(key, options = {})
@@ -14,9 +22,8 @@ module Cachy
     key = key.sort_by { |k, v| "#{k}" }.join(':') if key.is_a?(::Hash)
     key = "#{key}" unless key.is_a?(::String)
 
-    key = "version:#{Ryokan::Application::CACHE_CONFIG[:version]}:#{key}" unless options[:no_version]
+    key = "version:#{cache_config[:version]}:#{key}" unless options[:no_version]
     key = "locale:#{I18n.locale}:#{key}" unless options[:no_locale]
-
     key = Digest::SHA1.hexdigest(key) unless options[:no_sha]
 
     key
@@ -50,6 +57,10 @@ module Cachy
   end
 
   module ClassMethods
+    def set_cachy_options(options)
+      @cachy_options = cachy_options.merge(options)
+    end
+
     def cachy_options
       @cachy_options ||= { :expires_in => 1.day, :no_locale => true }
     end
@@ -62,24 +73,25 @@ module Cachy
       options.reverse_merge!(cachy_options)
 
       condition = options[:if]
-      key = options[:key]
+      key = options[:key] || :id
 
       class_eval do
-        alias_method name_no_cache, name
-
-        define_method name do |*args|
-          cache_key = key ? self.send(key) : (block && block.call(self, *args))
+        define_method "#{name}_via_cache" do |*args|
+          cache_key = block ? block.call(self, *args) : self.send(key)
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
           variable = "@cachy_#{name}_#{cache_key}"
           unless instance_variable_defined?(variable)
             object = if condition && condition.call(self, *args) == false
-              send(name_no_cache, *args)
+              send(name, *args)
             else
-              Rails.logger.info "#{class_key}:#{cache_key}"
-              Rails.logger.info options.slice(*::Cachy.cache_option_keys).inspect
+              if defined?(Rails) && !Rails.production?
+                Rails.logger.info "#{class_key}:#{cache_key}"
+                Rails.logger.info options.slice(*::Cachy.cache_option_keys).inspect
+              end
+
               obj = ::Cachy.cache.fetch("#{class_key}:#{cache_key}", options.slice(*::Cachy.cache_option_keys)) do
-                send(name_no_cache, *args)
+                send(name, *args)
               end
               ::Cachy.autoload(obj)
             end
@@ -116,17 +128,20 @@ module Cachy
 
       class_key = "#{self.name}:class:#{name}"
       metaclass.instance_eval do
-        define_method name do |*args|
+        define_method "#{name}_via_cache" do |*args|
           cache_key = block ? block.call(*args) : args
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
           object = if condition && condition.call(*args) == false
-            super(*args)
+            send(name, *args)
           else
-            Rails.logger.info "#{class_key}:#{cache_key}"
-            Rails.logger.info options.slice(*::Cachy.cache_option_keys).inspect
+            if defined?(Rails) && !Rails.production?
+              Rails.logger.info "#{class_key}:#{cache_key}"
+              Rails.logger.info options.slice(*::Cachy.cache_option_keys).inspect
+            end
+
             obj = ::Cachy.cache.fetch("#{class_key}:#{cache_key}", options.slice(*::Cachy.cache_option_keys)) do
-              super(*args)
+              send(name, *args)
             end
 
             ::Cachy.autoload(obj)
