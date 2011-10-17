@@ -129,7 +129,8 @@ module Cachy
       class_key = "#{self.name}:class:#{name}"
       metaclass.instance_eval do
         define_method "#{name}_via_cache" do |*args|
-          cache_key = block ? block.call(*args) : args
+          cache_key = *args
+          cache_key = block.call(*args) if block
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
           object = if condition && condition.call(*args) == false
