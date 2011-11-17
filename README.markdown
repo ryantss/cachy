@@ -36,7 +36,7 @@ class Tweet < ActiveRecord::Base
 
   # And cool part is.
   caches_class_methods :find_by_id, :first, :all do |*params|
-    { :params => params, :scope => self.current_scoped_methods && self.current_scoped_methods.to_sql }
+    { :params => params, :scope => self.scoped.to_sql }
   end
   # This will cache all kind of query, e.g.
   # Tweet.where(:id => 10).first
