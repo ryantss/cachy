@@ -127,7 +127,7 @@ module Cachy
       condition = options[:if]
 
       class_key = "#{self.name}:class:#{name}"
-      metaclass.instance_eval do
+      (class << self; self; end).instance_eval do
         define_method "#{name}_via_cache" do |*args|
           cache_key = *args
           cache_key = block.call(*args) if block
