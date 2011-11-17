@@ -6,7 +6,7 @@ module Cachy
   end
 
   def self.cache_config
-    @cache_config
+    @cache_config ||= { :version => 1 }
   end
 
   def self.set_cache(cache)
