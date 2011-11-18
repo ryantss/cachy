@@ -109,7 +109,12 @@ module Cachy
         end
 
         define_method "clear_cache_#{name}" do |*args|
-          cache_key = block_with_key.is_a?(Proc) ? block_with_key.call(self, *args) : self.send(block_with_key)
+          if block_with_key.is_a?(Proc)
+            cache_key = block_with_key.call(self, *args)
+          else
+            cache_key = self.send(block_with_key)
+          end
+
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
           variable = "@cachy_#{name}_#{cache_key}"
@@ -121,10 +126,10 @@ module Cachy
 
     end
 
-    def caches_methods(*names, &block)
+    def caches_methods(*names)
       options = names.extract_options!
       names.each do |name|
-        caches_method(name, options, &block)
+        caches_method(name, options)
       end
     end
 
@@ -181,7 +186,7 @@ module Cachy
     def caches_class_methods(*names)
       options = names.extract_options!
       names.each do |name|
-        caches_class_method(name, options, &block)
+        caches_class_method(name, options)
       end
     end
   end
