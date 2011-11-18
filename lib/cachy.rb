@@ -161,7 +161,11 @@ module Cachy
         end
 
         define_method "clear_cache_#{name}" do |*args|
-          cache_key = block_cache_key ? block_cache_key.call(*args) : *args
+          if block_cache_key
+            cache_key = block_cache_key.call(*args)
+          else
+            cache_key = *args
+          end
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
           ::Cachy.cache.delete("#{class_key}:#{cache_key}")
