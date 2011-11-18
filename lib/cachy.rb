@@ -71,13 +71,17 @@ module Cachy
       options.reverse_merge!(cachy_options)
 
       block_if = options[:if]
-      block_with_key = options[:with_key]
-      block_with_key ||= :id # id of the object is the default key.
+      block_with_key = options[:with_key] || :id # id of the object is the default key.
       block_after_load = options[:after_load]
 
       class_eval do
         define_method "#{name}_via_cache" do |*args|
-          cache_key = block_with_key.is_a?(Proc) ? block_with_key.call(self, *args) : self.send(block_with_key)
+          if block_with_key.is_a?(Proc)
+            cache_key = block_with_key.call(self, *args)
+          else
+            cache_key = self.send(block_with_key)
+          end
+
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
           variable = "@cachy_#{name}_#{cache_key}"
@@ -127,14 +131,14 @@ module Cachy
     def caches_class_method(name, options = {})
       options.reverse_merge!(cachy_options)
       block_if = options[:if]
-      block_with_key = options[:key]
+      block_with_key = options[:with_key]
       block_after_load = options[:after_load]
 
       class_key = "#{self.name}:class:#{name}"
       (class << self; self; end).instance_eval do
         define_method "#{name}_via_cache" do |*args|
-          if block_cache_key
-            cache_key = block_cache_key.call(*args)
+          if block_with_key
+            cache_key = block_with_key.call(*args)
           else
             cache_key = *args
           end
@@ -161,8 +165,8 @@ module Cachy
         end
 
         define_method "clear_cache_#{name}" do |*args|
-          if block_cache_key
-            cache_key = block_cache_key.call(*args)
+          if block_with_key
+            cache_key = block_with_key.call(*args)
           else
             cache_key = *args
           end
