@@ -65,24 +65,24 @@ module Cachy
       @cachy_options ||= { :expires_in => 1.day, :no_locale => true }
     end
 
-    def caches_method(name, options = {})
+    def caches_method(name, options = {}, &block)
       class_key = "#{self.name}:#{name}"
+
+      name_no_cache = "#{name}_no_cache"
 
       options.reverse_merge!(cachy_options)
 
-      block_if = options[:if]
-      block_with_key = options[:with_key]
-      block_with_key ||= :id # id of the object is the default key.
-      block_after_load = options[:after_load]
+      condition = options[:if]
+      key = options[:key] || :id
 
       class_eval do
         define_method "#{name}_via_cache" do |*args|
-          cache_key = block_with_key.is_a?(Proc) ? block_with_key.call(self, *args) : self.send(block_with_key)
+          cache_key = block ? block.call(self, *args) : self.send(key)
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
           variable = "@cachy_#{name}_#{cache_key}"
           unless instance_variable_defined?(variable)
-            object = if block_if && block_if.call(self, *args) == false
+            object = if condition && condition.call(self, *args) == false
               send(name, *args)
             else
               if defined?(Rails) && !Rails.env.production?
@@ -96,8 +96,6 @@ module Cachy
               ::Cachy.autoload(obj)
             end
 
-            block_after_load.call(object) if block_after_load
-
             instance_variable_set(variable, object)
           end
 
@@ -105,7 +103,7 @@ module Cachy
         end
 
         define_method "clear_cache_#{name}" do |*args|
-          cache_key = block_with_key.is_a?(Proc) ? block_with_key.call(self, *args) : self.send(block_with_key)
+          cache_key = key ? self.send(key) : block && block.call(self, *args)
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
           variable = "@cachy_#{name}_#{cache_key}"
@@ -124,19 +122,18 @@ module Cachy
       end
     end
 
-    def caches_class_method(name, options = {})
+    def caches_class_method(name, options = {}, &block)
       options.reverse_merge!(cachy_options)
-      block_if = options[:if]
-      block_with_key = options[:key]
-      block_after_load = options[:after_load]
+      condition = options[:if]
 
       class_key = "#{self.name}:class:#{name}"
       (class << self; self; end).instance_eval do
         define_method "#{name}_via_cache" do |*args|
-          cache_key = block_cache_key ? block_cache_key.call(*args) : *args
+          cache_key = *args
+          cache_key = block.call(*args) if block
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
-          object = if block_if && block_if.call(*args) == false
+          object = if condition && condition.call(*args) == false
             send(name, *args)
           else
             if defined?(Rails) && !Rails.env.production?
@@ -151,13 +148,12 @@ module Cachy
             ::Cachy.autoload(obj)
           end
 
-          block_after_load.call(object) if block_after_load
 
           object
         end
 
         define_method "clear_cache_#{name}" do |*args|
-          cache_key = block_cache_key ? block_cache_key.call(*args) : *args
+          cache_key = block ? block.call(*args) : args
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
           ::Cachy.cache.delete("#{class_key}:#{cache_key}")
@@ -166,7 +162,7 @@ module Cachy
 
     end
 
-    def caches_class_methods(*names)
+    def caches_class_methods(*names, &block)
       options = names.extract_options!
       names.each do |name|
         caches_class_method(name, options, &block)
