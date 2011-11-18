@@ -129,8 +129,11 @@ module Cachy
       class_key = "#{self.name}:class:#{name}"
       (class << self; self; end).instance_eval do
         define_method "#{name}_via_cache" do |*args|
-          cache_key = *args
-          cache_key = block.call(*args) if block
+          cache_key = if block_cache_key
+            block_cache_key.call(*args)
+          else
+            *args
+          end
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
           object = if condition && condition.call(*args) == false
