@@ -57,6 +57,14 @@ module Cachy
   end
 
   module ClassMethods
+    def set_cachy_cache(cachy_cache)
+      @cachy_cache = cachy_cache
+    end
+
+    def cachy_cache
+      @cachy_cache ||= ::Cachy.cache
+    end
+
     def set_cachy_options(options)
       @cachy_options = cachy_options.merge(options)
     end
@@ -94,7 +102,7 @@ module Cachy
                 Rails.logger.info options.slice(*::Cachy.cache_option_keys).inspect
               end
 
-              obj = ::Cachy.cache.fetch("#{class_key}:#{cache_key}", options.slice(*::Cachy.cache_option_keys)) do
+              obj = self.class.cachy_cache.fetch("#{class_key}:#{cache_key}", options.slice(*::Cachy.cache_option_keys)) do
                 send(name, *args)
               end
               ::Cachy.autoload(obj)
@@ -120,7 +128,7 @@ module Cachy
           variable = "@cachy_#{name}_#{cache_key}"
           remove_instance_variable(variable) if instance_variable_defined?(variable)
 
-          ::Cachy.cache.delete("#{class_key}:#{cache_key}")
+          self.class.cachy_cache.delete("#{class_key}:#{cache_key}")
         end
       end
 
@@ -157,7 +165,7 @@ module Cachy
               Rails.logger.info options.slice(*::Cachy.cache_option_keys).inspect
             end
 
-            obj = ::Cachy.cache.fetch("#{class_key}:#{cache_key}", options.slice(*::Cachy.cache_option_keys)) do
+            obj = cachy_cache.fetch("#{class_key}:#{cache_key}", options.slice(*::Cachy.cache_option_keys)) do
               send(name, *args)
             end
 
@@ -177,7 +185,7 @@ module Cachy
           end
           cache_key = ::Cachy.digest(cache_key, options.slice(*::Cachy.digest_option_keys))
 
-          ::Cachy.cache.delete("#{class_key}:#{cache_key}")
+          cachy_cache.delete("#{class_key}:#{cache_key}")
         end
       end
 
